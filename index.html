@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Millennial Card</title>
+<meta name="theme-color" content="#16171b">
+<meta name="description" content="Finish-the-lyrics party game: plays a few seconds of a '90s or '00s hit and stops right at the blank.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&family=Permanent+Marker&family=VT323&display=swap">
+<style>
+/* Layout: one phone-width column. Home = a burned-CD tracklist insert written in marker;
+   game = a Discman panel (video window, LCD readout, Walkman-orange play key). */
+:root{
+  --bg:#16171b; --panel:#212329; --panel-2:#2b2e36; --line:#3b3f49;
+  --ink:#eef0f3; --muted:#a0a6b2;
+  --paper:#e8ebf0; --paper-ink:#1c1f26; --paper-rule:#c7d1e2; --paper-muted:#5b6372;
+  --lcd:#b4c09c; --lcd-ink:#1e2719; --lcd-dim:#75805f;
+  --play:#ff6a13; --play-ink:#1d0e04;
+  --blank:#ff3d8b; --ok:#3fcf8e;
+  --marker:'Permanent Marker','Comic Sans MS','Chalkboard SE',cursive;
+  --lcdf:'VT323',ui-monospace,'Courier New',monospace;
+  --ui:'Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 var(--ui);-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+button,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--play);outline-offset:2px}
+.wrap{max-width:560px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:18px}
+
+/* ---------- shared ---------- */
+.btn{border:0;border-radius:14px;padding:13px 16px;font-weight:700;letter-spacing:.01em;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;transition:transform .08s ease,background .15s}
+.btn:active{transform:scale(.98)}
+.btn.play{background:var(--play);color:var(--play-ink);box-shadow:0 3px 0 #b44707}
+.btn.play:active{box-shadow:0 1px 0 #b44707;transform:translateY(2px)}
+.btn.big{font-size:1.15rem;min-height:60px;width:100%}
+.btn.ghost{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line)}
+.btn.hot{background:var(--blank);color:#22040f;box-shadow:0 3px 0 #a81e55}
+.btn.sm{min-height:40px;padding:8px 12px;font-size:.92rem;border-radius:11px}
+.btn[disabled]{opacity:.45;cursor:default}
+.link{background:none;border:0;padding:8px 0;color:var(--muted);font-weight:600}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.note{color:var(--muted);font-size:.9rem;margin:0}
+
+.disc{flex:none;width:46px;height:46px;border-radius:50%;
+  background:radial-gradient(circle,var(--bg) 0 10%,#d4d9e1 11% 16%,rgba(255,255,255,.08) 17% 31%,transparent 32%),
+    conic-gradient(from 30deg,#c3ccd9,#efc3dc,#bfe4f1,#e6efbf,#c3ccd9,#d4c2f1,#c3ccd9);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.3),0 2px 10px rgba(0,0,0,.4)}
+.disc.spin{animation:spin 1.4s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- home ---------- */
+.top{display:flex;align-items:center;gap:14px}
+.top h1{font-family:var(--marker);font-weight:400;font-size:2rem;line-height:1;margin:0;letter-spacing:.01em}
+.top p{margin:4px 0 0;color:var(--muted);font-size:.95rem}
+.home-actions{display:grid;gap:10px}
+.status-line{margin:0;color:var(--muted);font-size:.92rem;font-variant-numeric:tabular-nums}
+.status-line b{color:var(--ink);font-weight:700}
+
+.insert{background:var(--paper);color:var(--paper-ink);border-radius:6px;padding:14px 14px 10px;
+  box-shadow:0 1px 0 rgba(255,255,255,.4) inset,0 10px 30px rgba(0,0,0,.35)}
+.tracks li{border-bottom:1px solid var(--paper-rule)}
+.tracks li:last-child{border-bottom:0}
+.insert-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:8px;border-bottom:2px solid var(--paper-ink)}
+.insert-head span{font-weight:800;letter-spacing:.14em;font-size:.78rem}
+.switch{display:flex;align-items:center;gap:8px;font-size:.9rem;font-weight:600;color:var(--paper-muted)}
+.switch input{width:20px;height:20px;accent-color:var(--play)}
+.tracks{list-style:none;margin:0;padding:0}
+.trk{width:100%;display:grid;grid-template-columns:2.1em minmax(0,1fr) auto;align-items:center;gap:6px 10px;text-align:left;background:none;border:0;padding:8px 2px;min-height:56px;color:inherit;border-radius:6px}
+.trk:hover{background:rgba(0,0,0,.04)}
+.trk .no{font-family:var(--marker);font-size:1rem;color:var(--paper-muted);font-variant-numeric:tabular-nums}
+.trk .name{min-width:0}
+.trk .t{display:block;font-family:var(--marker);font-size:1.12rem;line-height:1.15;overflow-wrap:anywhere}
+.trk .a{display:block;font-size:.82rem;color:var(--paper-muted);overflow-wrap:anywhere}
+.trk.played .t{text-decoration:line-through;text-decoration-thickness:2px;text-decoration-color:rgba(28,31,38,.45)}
+.marks{display:flex;align-items:center;gap:6px}
+.dot{width:12px;height:12px;border-radius:50%}
+.dot.ok{background:var(--ok)}
+.dot.check{box-shadow:inset 0 0 0 2.5px var(--blank)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:.8rem;color:var(--paper-muted);padding:10px 2px 2px;border-top:1px solid var(--paper-rule);margin-top:6px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* ---------- game ---------- */
+.g-top{display:flex;justify-content:space-between;align-items:center}
+.lcdtag{font-family:var(--lcdf);font-size:1.35rem;background:var(--lcd);color:var(--lcd-ink);padding:0 10px;border-radius:6px;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.song{font-family:var(--marker);font-weight:400;font-size:clamp(1.7rem,7vw,2.3rem);line-height:1.08;margin:0;text-wrap:balance;overflow-wrap:anywhere}
+.artist{margin:6px 0 0;color:var(--muted);font-weight:600}
+.panel{background:var(--panel);border-radius:20px;padding:12px;display:flex;flex-direction:column;gap:12px;box-shadow:inset 0 0 0 1px var(--line)}
+.screen{position:relative;width:100%;max-width:100%;aspect-ratio:16/9;background:#000;border-radius:12px;overflow:hidden}
+.screen iframe,.screen #yt{position:absolute;inset:0;width:100%;height:100%;border:0}
+.screen-msg{position:absolute;left:8px;right:8px;bottom:8px;background:rgba(14,15,18,.92);color:var(--ink);border-radius:10px;padding:9px 12px;font-size:.9rem;font-weight:600;pointer-events:none;box-shadow:inset 0 0 0 1px var(--line)}
+.lcd{background:var(--lcd);color:var(--lcd-ink);border-radius:10px;padding:8px 12px 10px;font-family:var(--lcdf);box-shadow:inset 0 2px 6px rgba(0,0,0,.25)}
+.lcd-row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:1.7rem;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.lcd-row.small{font-size:1.05rem;color:var(--lcd-dim);margin-top:4px}
+.meter{position:relative;height:12px;margin-top:6px;border-radius:2px;background:rgba(30,39,25,.14);overflow:hidden}
+.meter .fill{position:absolute;top:0;bottom:0;left:0;width:0;background:var(--lcd-ink)}
+.meter .revfill{position:absolute;top:0;bottom:0;width:0;background:repeating-linear-gradient(90deg,var(--lcd-ink) 0 3px,transparent 3px 5px)}
+.meter .tick{position:absolute;top:-2px;bottom:-2px;width:4px;margin-left:-2px;background:var(--blank)}
+.controls{display:grid;gap:10px}
+.turn{text-align:center;font-family:var(--marker);font-size:1.35rem;color:var(--blank);margin:0;min-height:1.6em}
+
+.score{display:flex;flex-direction:column;gap:8px}
+.score h3,.adjust h3,.sheet h4{margin:0;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:0;border-radius:999px;padding:9px 14px;background:var(--panel-2);box-shadow:inset 0 0 0 1px var(--line);font-weight:700;min-height:44px;display:inline-flex;gap:8px;align-items:center}
+.chip .pts{font-family:var(--lcdf);font-size:1.25rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.chip[aria-pressed="true"]{background:var(--ok);color:#06210f;box-shadow:none}
+.chip[aria-pressed="true"] .pts{color:#06210f}
+
+details.adjust{background:var(--panel);border-radius:16px;box-shadow:inset 0 0 0 1px var(--line)}
+details.adjust>summary{list-style:none;padding:14px 16px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:52px}
+details.adjust>summary::-webkit-details-marker{display:none}
+details.adjust>summary::after{content:"+";font-size:1.4rem;color:var(--muted)}
+details.adjust[open]>summary::after{content:"–"}
+.adj-body{padding:0 16px 16px;display:flex;flex-direction:column;gap:12px}
+.stopread{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.stopread .v{font-family:var(--lcdf);font-size:2rem;font-variant-numeric:tabular-nums}
+.badge{font-size:.78rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 8px;border-radius:999px;box-shadow:inset 0 0 0 1.5px currentColor}
+.badge.est{color:var(--muted)} .badge.ok{color:var(--ok)} .badge.chk{color:var(--blank)} .badge.mine{color:var(--play)}
+.nudge{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.nudge .btn{font-family:var(--lcdf);font-size:1.3rem;font-weight:400;padding:6px}
+.field{display:flex;gap:8px}
+.field input{flex:1;min-width:0;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:11px;padding:10px 12px}
+.done{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;padding-top:20px}
+.done h2{font-family:var(--marker);font-weight:400;font-size:2.2rem;margin:0}
+.standings{list-style:none;margin:0;padding:0;width:100%;display:grid;gap:8px}
+.standings li{display:flex;justify-content:space-between;background:var(--panel);border-radius:12px;padding:12px 16px;font-weight:700;box-shadow:inset 0 0 0 1px var(--line)}
+.standings li span:last-child{font-family:var(--lcdf);font-size:1.5rem;font-weight:400}
+
+/* ---------- sheet ---------- */
+dialog{border:0;padding:0;background:transparent;color:var(--ink);width:100%;max-width:560px;max-height:100%;margin:auto auto 0}
+dialog::backdrop{background:rgba(5,6,8,.65)}
+.sheet{background:var(--panel);border-radius:22px 22px 0 0;padding:18px max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));display:flex;flex-direction:column;gap:14px;max-height:88vh;overflow:auto}
+.sheet-head{display:flex;justify-content:space-between;align-items:center}
+.sheet-head h3{margin:0;font-family:var(--marker);font-weight:400;font-size:1.5rem}
+.sheet section{display:flex;flex-direction:column;gap:10px}
+.plist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.plist li{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--panel-2);border-radius:11px;padding:6px 6px 6px 14px;font-weight:700}
+.plist .pts{font-family:var(--lcdf);font-size:1.3rem;font-weight:400;color:var(--muted);margin-left:auto}
+.range{display:flex;flex-direction:column;gap:4px;font-weight:600}
+.range span{display:flex;justify-content:space-between}
+.range output{font-family:var(--lcdf);font-size:1.3rem;color:var(--play)}
+.range input{width:100%;accent-color:var(--play)}
+textarea{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:11px;padding:10px 12px;font:13px/1.4 ui-monospace,monospace;resize:vertical}
+@media (prefers-reduced-motion:reduce){.disc.spin{animation:none}.btn{transition:none}}
+</style>
+</head>
+<body>
+<noscript><p style="padding:16px">This game needs JavaScript turned on.</p></noscript>
+
+<!-- HOME -->
+<main id="home" class="wrap">
+  <header class="top">
+    <div class="disc" aria-hidden="true"></div>
+    <div>
+      <h1>Millennial Card</h1>
+      <p>Finish the lyric or hand it over.</p>
+    </div>
+  </header>
+  <div class="home-actions">
+    <button id="startBtn" class="btn play big" type="button">▶ Start game</button>
+    <button id="menuBtn" class="btn ghost" type="button">Players &amp; settings</button>
+  </div>
+  <p class="status-line" id="homeStatus"></p>
+  <section class="insert" aria-label="Tracklist">
+    <div class="insert-head">
+      <span>TRACKS · '90s &amp; '00s</span>
+      <label class="switch"><input type="checkbox" id="shuffle"> Shuffle</label>
+    </div>
+    <ol class="tracks" id="tracks"></ol>
+    <div class="legend">
+      <span><i class="dot ok"></i> stop point confirmed</span>
+      <span><i class="dot check"></i> test this stop first</span>
+    </div>
+  </section>
+</main>
+
+<!-- GAME -->
+<main id="game" class="wrap" hidden>
+  <div class="g-top">
+    <button id="backBtn" class="link" type="button">‹ Tracklist</button>
+    <span class="lcdtag" id="trkNo">TRK 01/30</span>
+  </div>
+  <div>
+    <h2 class="song" id="gTitle"></h2>
+    <p class="artist" id="gArtist"></p>
+  </div>
+
+  <div class="panel">
+    <div class="screen">
+      <div id="yt"></div>
+      <div class="screen-msg" id="screenMsg" hidden></div>
+    </div>
+    <div class="lcd" aria-live="polite">
+      <div class="lcd-row"><span id="lcdState">LOADING</span><span id="lcdTime">--.-</span></div>
+      <div class="meter" aria-hidden="true"><div class="fill" id="mFill"></div><div class="revfill" id="mRev"></div><div class="tick" id="mTick"></div></div>
+      <div class="lcd-row small"><span id="lblLead">LEAD-IN 8s</span><span id="lblRev">ANSWER 6s</span></div>
+    </div>
+    <div class="controls">
+      <button id="playBtn" class="btn play big" type="button" disabled>▶ Play clip</button>
+      <p class="turn" id="turn" aria-live="polite"></p>
+      <div class="row2">
+        <button id="revealBtn" class="btn ghost" type="button" disabled>Reveal answer</button>
+        <button id="nextBtn" class="btn ghost" type="button">Next track ›</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="score" id="scoreBox">
+    <h3>Who got it?</h3>
+    <div class="chips" id="chips"></div>
+  </section>
+
+  <details class="adjust" id="adjust">
+    <summary>Adjust stop point</summary>
+    <div class="adj-body">
+      <div class="stopread">
+        <span>Clip stops at <span class="v" id="stopVal">0:00.0</span></span>
+        <span class="badge est" id="stopBadge">estimate</span>
+      </div>
+      <p class="note">Tap a nudge to move the stop point. Each nudge plays the last 3 seconds before the new stop so you can hear it.</p>
+      <div class="nudge">
+        <button class="btn ghost" type="button" data-nudge="-1">−1s</button>
+        <button class="btn ghost" type="button" data-nudge="-0.2">−.2s</button>
+        <button class="btn ghost" type="button" data-nudge="0.2">+.2s</button>
+        <button class="btn ghost" type="button" data-nudge="1">+1s</button>
+      </div>
+      <button id="markBtn" class="btn ghost" type="button">Listen and mark it myself</button>
+      <p class="note" id="markNote">Plays from 15 seconds earlier. Tap again the moment the missing words start.</p>
+      <div class="row2">
+        <button id="okBtn" class="btn ghost" type="button">✓ Sounds right</button>
+        <button id="resetStopBtn" class="btn ghost" type="button">Reset</button>
+      </div>
+      <h3>Use a different video</h3>
+      <div class="field">
+        <input id="vidInput" type="url" inputmode="url" placeholder="Paste a YouTube link" autocomplete="off">
+        <button id="vidSave" class="btn ghost sm" type="button">Use it</button>
+      </div>
+      <p class="note" id="vidNote"></p>
+    </div>
+  </details>
+</main>
+
+<!-- END OF DISC -->
+<main id="done" class="wrap" hidden>
+  <div class="done">
+    <div class="disc" aria-hidden="true"></div>
+    <h2>That's the whole disc</h2>
+    <p class="note" id="doneNote"></p>
+    <ol class="standings" id="standings"></ol>
+    <button id="doneBack" class="btn play big" type="button">Back to the tracklist</button>
+  </div>
+</main>
+
+<!-- SHEET -->
+<dialog id="menu">
+  <form method="dialog" class="sheet">
+    <div class="sheet-head">
+      <h3>Players &amp; settings</h3>
+      <button class="btn ghost sm" value="close">Done</button>
+    </div>
+
+    <section>
+      <h4>Players</h4>
+      <ul class="plist" id="plist"></ul>
+      <div class="field">
+        <input id="pname" placeholder="Add a player" maxlength="20" autocomplete="off">
+        <button id="padd" class="btn ghost sm" type="button">Add</button>
+      </div>
+    </section>
+
+    <section>
+      <h4>Clip length</h4>
+      <label class="range"><span>Lead-in before the blank <output id="leadOut">8s</output></span>
+        <input type="range" id="lead" min="4" max="15" step="1"></label>
+      <label class="range"><span>Answer playback <output id="revOut">6s</output></span>
+        <input type="range" id="reveal" min="3" max="12" step="1"></label>
+    </section>
+
+    <section>
+      <h4>Back up your stop points</h4>
+      <p class="note">Your changes are saved on this phone only. Copy this code somewhere safe; paste it back here to restore it.</p>
+      <textarea id="backup" rows="3" spellcheck="false"></textarea>
+      <div class="row2">
+        <button id="copyBk" class="btn ghost sm" type="button">Copy code</button>
+        <button id="restoreBk" class="btn ghost sm" type="button">Restore from code</button>
+      </div>
+      <p class="note" id="bkMsg" aria-live="polite"></p>
+    </section>
+
+    <section>
+      <h4>Start fresh</h4>
+      <div class="row2">
+        <button id="resetPlayed" class="btn ghost sm" type="button">Clear played tracks</button>
+        <button id="resetScores" class="btn ghost sm" type="button">Reset scores</button>
+      </div>
+    </section>
+
+    <section>
+      <h4>Home screen</h4>
+      <p class="note">In Chrome, tap ⋮ then <b>Add to Home screen</b>. It opens full screen like an app.</p>
+    </section>
+  </form>
+</dialog>
+
+<script>
+/* Song list from the BuzzFeed quiz. stop = seconds into the video where the blank starts,
+   estimated from timed lyrics. Videos come from the artists' official YouTube channels. */
+const SONGS = [
+ {n:1,title:"...Baby One More Time",artist:"Britney Spears",id:"fEfvTTJNeAY",stop:44.0},
+ {n:2,title:"Livin' la Vida Loca",artist:"Ricky Martin",id:"CN5hQOI__10",stop:13.9},
+ {n:3,title:"Always Be My Baby",artist:"Mariah Carey",id:"LfRNRymrv9k",stop:74.9},
+ {n:4,title:"Ms. Jackson",artist:"Outkast",id:"oZU9sPQ1lJc",stop:29.2},
+ {n:5,title:"Bye Bye Bye",artist:"NSYNC",id:"C27NShgTQE4",stop:58.3},
+ {n:6,title:"I'm Real (Murder Remix)",artist:"Jennifer Lopez ft. Ja Rule",id:"JP9tfY8SvpI",stop:38.0},
+ {n:7,title:"Hey Baby",artist:"No Doubt",id:"8TOQtLfoXzU",stop:33.9},
+ {n:8,title:"I'm Like a Bird",artist:"Nelly Furtado",id:"roPQ_M3yJTA",stop:62.0},
+ {n:9,title:"Mambo No. 5 (A Little Bit of...)",artist:"Lou Bega",id:"EK_LN3XEcnw",stop:70.6,check:true},
+ {n:10,title:"Survivor",artist:"Destiny's Child",id:"Wmc8bQoL-J0",stop:52.0},
+ {n:11,title:"Genie in a Bottle",artist:"Christina Aguilera",id:"kIDWgqDBNXA",stop:57.0},
+ {n:12,title:"Work It",artist:"Missy Elliott",id:"kENqsrOrjPo",stop:34.3},
+ {n:13,title:"I Miss You",artist:"Blink-182",id:"s1tAYmMjLdY",stop:118.6},
+ {n:14,title:"Sugar, We're Goin Down",artist:"Fall Out Boy",id:"EIzpJuLhZa0",stop:27.9},
+ {n:15,title:"Complicated",artist:"Avril Lavigne",id:"5NPBIwQyPWE",stop:50.7},
+ {n:16,title:"If I Ain't Got You",artist:"Alicia Keys",id:"Ju8Hr50Ckwk",stop:31.9,check:true},
+ {n:17,title:"No Scrubs",artist:"TLC",id:"18SwG-kep7s",stop:35.6},
+ {n:18,title:"U Remind Me",artist:"Usher",id:"dSU3sehv6z0",stop:48.5},
+ {n:19,title:"Wannabe",artist:"Spice Girls",id:"gJLIiF15wjQ",stop:46.2,check:true},
+ {n:20,title:"Wonderwall",artist:"Oasis",id:"FVdjZYfDuLE",stop:95.0},
+ {n:21,title:"Doo-Wop (That Thing)",artist:"Lauryn Hill",id:"wIbpc6QFXso",stop:65.8},
+ {n:22,title:"Lady Marmalade",artist:"Christina Aguilera, Lil' Kim, Mýa & Pink",id:"tnsae1pQsUU",stop:18.0},
+ {n:23,title:"All For You",artist:"Janet Jackson",id:"CF6VLiW_LT4",stop:6.6},
+ {n:24,title:"Angel",artist:"Shaggy ft. Rayvon",id:"XWJrPzAUzAs",stop:58.1},
+ {n:25,title:"Try Again",artist:"Aaliyah",id:"8ciOoULvbZc",stop:46.3},
+ {n:26,title:"Kiss Me",artist:"Sixpence None the Richer",id:"CAC-onWPMB0",stop:41.0},
+ {n:27,title:"Can't Get You Out of My Head",artist:"Kylie Minogue",id:"c18441Eh_WE",stop:33.4},
+ {n:28,title:"A Thousand Miles",artist:"Vanessa Carlton",id:"NpNi7Gsz8_Q",stop:14.1},
+ {n:29,title:"Where Is the Love?",artist:"Black Eyed Peas",id:"WpYeekQkAdc",stop:75.3,check:true},
+ {n:30,title:"Crazy in Love",artist:"Beyoncé ft. Jay-Z",id:"ViwtNLUqkMY",stop:36.5}
+];
+const TOTAL = SONGS.length;
+const KEY = 'millennial-card-v1';
+const REACTION = 0.25; // seconds subtracted from a hand-marked stop
+
+/* ---------- saved state (this phone only) ---------- */
+function defaults(){ return {over:{}, played:[], players:[], awards:{}, lead:8, reveal:6, shuffle:false}; }
+function load(){
+  try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && typeof j === 'object') return Object.assign(defaults(), j); } catch(e) {}
+  return defaults();
+}
+let S = load();
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
+
+function song(n){
+  const b = SONGS[n-1], o = S.over[n] || {};
+  const mine = typeof o.stop === 'number';
+  return {...b, id:o.id || b.id, stop: mine ? o.stop : b.stop, mine, ok: !!o.ok, needsCheck: !!b.check && !o.ok && !mine};
+}
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2,'0');
+function fmt(t){ t = Math.max(0,t); const m = Math.floor(t/60); return m + ':' + (t - m*60).toFixed(1).padStart(4,'0'); }
+const leadStart = s => Math.max(0, s.stop - S.lead);
+
+/* ---------- home ---------- */
+function renderHome(){
+  const ol = $('tracks'); ol.innerHTML = '';
+  let checks = 0;
+  for (let n = 1; n <= TOTAL; n++){
+    const s = song(n), played = S.played.includes(n);
+    if (s.needsCheck) checks++;
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'trk' + (played ? ' played' : ''); b.dataset.n = n;
+    const no = document.createElement('span'); no.className = 'no'; no.textContent = pad(n);
+    const nm = document.createElement('span'); nm.className = 'name';
+    const t = document.createElement('span'); t.className = 't'; t.textContent = s.title;
+    const a = document.createElement('span'); a.className = 'a'; a.textContent = s.artist + (played ? ' · played' : '');
+    nm.append(t, a);
+    const mk = document.createElement('span'); mk.className = 'marks';
+    if (s.ok) { const d = document.createElement('i'); d.className = 'dot ok'; d.title = 'Stop point confirmed'; mk.append(d); }
+    else if (s.needsCheck) { const d = document.createElement('i'); d.className = 'dot check'; d.title = 'Test this stop point first'; mk.append(d); }
+    b.append(no, nm, mk);
+    b.addEventListener('click', () => startFrom(n));
+    li.append(b); ol.append(li);
+  }
+  const p = S.played.length;
+  $('homeStatus').innerHTML = `<b>${p}</b> of ${TOTAL} played` + (checks ? ` · ${checks} stop point${checks>1?'s':''} to test first` : '');
+  $('shuffle').checked = !!S.shuffle;
+  $('startBtn').textContent = p && p < TOTAL ? '▶ Keep playing' : '▶ Start game';
+}
+$('shuffle').addEventListener('change', e => { S.shuffle = e.target.checked; save(); });
+
+/* ---------- navigation ---------- */
+let queue = [], qi = 0, cur = 1, clipPlayed = false;
+function shuffleArr(a){ for (let i = a.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
+function startGame(){
+  let list = SONGS.map(s => s.n).filter(n => !S.played.includes(n));
+  if (!list.length){ S.played = []; save(); list = SONGS.map(s => s.n); }
+  if (S.shuffle) shuffleArr(list);
+  queue = list; qi = 0; openTrack(queue[0]);
+}
+function startFrom(n){
+  const rest = SONGS.map(s => s.n).filter(x => x > n && !S.played.includes(x));
+  queue = [n, ...(S.shuffle ? shuffleArr(rest) : rest)]; qi = 0; openTrack(n);
+}
+function show(which){
+  for (const id of ['home','game','done']) $(id).hidden = id !== which;
+  window.scrollTo(0,0);
+}
+function goHome(){ stopSeg(true); try { player && player.pauseVideo && player.pauseVideo(); } catch(e){} releaseWake(); renderHome(); show('home'); }
+$('startBtn').addEventListener('click', startGame);
+$('backBtn').addEventListener('click', goHome);
+$('doneBack').addEventListener('click', goHome);
+$('nextBtn').addEventListener('click', () => {
+  if (clipPlayed) markPlayed(cur);
+  qi++;
+  if (qi >= queue.length) return showDone();
+  openTrack(queue[qi]);
+});
+function markPlayed(n){ if (!S.played.includes(n)){ S.played.push(n); save(); } }
+
+function openTrack(n){
+  stopSeg(true);
+  cur = n; clipPlayed = false;
+  const s = song(n);
+  $('trkNo').textContent = `TRK ${pad(n)}/${TOTAL}`;
+  $('gTitle').textContent = s.title;
+  $('gArtist').textContent = s.artist;
+  $('turn').textContent = '';
+  $('playBtn').textContent = '▶ Play clip';
+  $('revealBtn').disabled = true;
+  $('adjust').open = false;
+  $('vidInput').value = ''; $('vidNote').textContent = '';
+  hideMsg(); renderLabels(); renderChips(); renderAdjust();
+  setLcd(playerReady ? 'READY' : 'LOADING', '-' + S.lead.toFixed(1)); setMeter(0,0);
+  show('game');
+  if (playerReady) cue(); else ensurePlayer();
+  requestWake();
+}
+function showDone(){
+  stopSeg(true); try { player && player.pauseVideo(); } catch(e){}
+  releaseWake();
+  const ol = $('standings'); ol.innerHTML = '';
+  const st = standings();
+  $('doneNote').textContent = st.length ? 'Final scores' : 'Add players in Players & settings to keep score next time.';
+  st.forEach((p,i) => { const li = document.createElement('li'); const a = document.createElement('span'); a.textContent = (i===0 && p.score>0 ? '★ ' : '') + p.name; const b = document.createElement('span'); b.textContent = p.score; li.append(a,b); ol.append(li); });
+  show('done');
+}
+
+/* ---------- LCD + meter ---------- */
+function renderLabels(){ $('lblLead').textContent = `LEAD-IN ${S.lead}s`; $('lblRev').textContent = `ANSWER ${S.reveal}s`; $('mTick').style.left = (leadFrac()*100) + '%'; }
+const leadFrac = () => S.lead / (S.lead + S.reveal);
+function setLcd(state, time){ $('lcdState').textContent = state; if (time != null) $('lcdTime').textContent = time; }
+function setMeter(leadPart, revPart){
+  const lf = leadFrac();
+  $('mFill').style.width = (Math.min(1,Math.max(0,leadPart))*lf*100) + '%';
+  $('mRev').style.left = (lf*100) + '%';
+  $('mRev').style.width = (Math.min(1,Math.max(0,revPart))*(1-lf)*100) + '%';
+}
+function showMsg(t){ $('screenMsg').textContent = t; $('screenMsg').hidden = false; }
+function hideMsg(){ $('screenMsg').hidden = true; }
+
+/* ---------- YouTube player ---------- */
+let player = null, playerReady = false, apiReady = false, loadedId = null;
+window.onYouTubeIframeAPIReady = () => { apiReady = true; if (!$('game').hidden) ensurePlayer(); };
+(function loadApi(){
+  const sc = document.createElement('script');
+  sc.src = 'https://www.youtube.com/iframe_api';
+  sc.onerror = () => showMsg("Can't reach YouTube. Check the connection, then reopen the app.");
+  document.head.appendChild(sc);
+})();
+function ensurePlayer(){
+  if (player || !apiReady) return;
+  const s = song(cur);
+  loadedId = s.id;
+  player = new YT.Player('yt', {
+    width:'100%', height:'100%', videoId:s.id,
+    playerVars:{playsinline:1, controls:0, disablekb:1, rel:0, fs:0, iv_load_policy:3, modestbranding:1, start:Math.floor(leadStart(s)), origin:location.origin},
+    events:{
+      onReady:() => { playerReady = true; $('playBtn').disabled = false; if (!seg) setLcd('READY'); if (song(cur).id !== loadedId) cue(); },
+      onStateChange:onState,
+      onError:onErr
+    }
+  });
+}
+function cue(){
+  const s = song(cur);
+  try { player.cueVideoById({videoId:s.id, startSeconds:leadStart(s)}); loadedId = s.id; } catch(e){}
+  $('playBtn').disabled = false;
+}
+function onErr(e){
+  stopSeg(true);
+  const why = (e.data === 101 || e.data === 150) ? "The owner doesn't allow this video to play inside other apps."
+            : e.data === 100 ? 'This video was removed or made private.'
+            : "This video won't load right now.";
+  showMsg(why + ' Open “Adjust stop point” to paste a different YouTube link.');
+  setLcd('ERROR ' + e.data);
+}
+
+/* Segment engine: play from `from`, pause when the video clock reaches `to`.
+   The iframe reports its clock in coarse steps, so we extrapolate briefly between reports.
+   Values are ignored until the seek lands, and extrapolation is capped so an ad or a stall can't trigger an early stop. */
+let seg = null, ticker = null, watchdog = null;
+function playSeg(from, to, kind){
+  if (!playerReady) return;
+  stopSeg(false); hideMsg();
+  if (kind === 'test' || kind === 'mark') $('turn').textContent = '';
+  const s = song(cur);
+  let pre = 0; try { pre = player.getCurrentTime() || 0; } catch(e){}
+  seg = {from, to, kind, pre, live:false, reseek:false, t0:performance.now(), lastCt:null, anchor:from, wall:performance.now(), est:from, stillSince:performance.now()};
+  if (loadedId !== s.id){ player.loadVideoById({videoId:s.id, startSeconds:from}); loadedId = s.id; }
+  else { player.seekTo(from, true); player.playVideo(); }
+  document.querySelectorAll('.disc').forEach(d => d.classList.add('spin'));
+  ticker = setInterval(tick, 30);
+  watchdog = setTimeout(() => {
+    if (seg && !seg.live){
+      const st = player.getPlayerState ? player.getPlayerState() : -1;
+      if (st !== 1 && st !== 3) showMsg('Tap the video once to start it. After that the buttons work on their own.');
+    }
+  }, 3500);
+}
+function tick(){
+  if (!seg) return;
+  const now = performance.now();
+  let ct = 0, st = -1;
+  try { ct = player.getCurrentTime() || 0; st = player.getPlayerState(); } catch(e){ return; }
+  if (!seg.live){
+    // wait until the clock leaves the pre-seek value and lands near `from`
+    if (ct !== seg.pre && ct >= seg.from - 1 && ct <= seg.to + 1){ seg.live = true; seg.lastCt = ct; seg.anchor = ct; seg.wall = now; seg.stillSince = now; }
+    else {
+      // playing somewhere else for a while (the seek didn't take): ask again
+      if (st === 1 && now - seg.t0 > 4000 && !seg.reseek){ seg.reseek = true; try { player.seekTo(seg.from, true); } catch(e){} }
+      return;
+    }
+  }
+  if (ct !== seg.lastCt){ seg.lastCt = ct; seg.anchor = ct; seg.wall = now; seg.stillSince = now; hideMsg(); }
+  const playing = st === 1;
+  const est = playing ? seg.anchor + Math.min((now - seg.wall)/1000, 0.4) : ct;
+  seg.est = est;
+  if (playing && now - seg.stillSince > 1500) setLcd('WAIT…'); // ad or buffering
+  paint(est);
+  if (seg.kind !== 'mark' && est >= seg.to - 0.02){ try { player.pauseVideo(); } catch(e){} endSeg(); }
+  else if (seg.kind === 'mark' && est >= seg.to){ try { player.pauseVideo(); } catch(e){} endSeg(); }
+}
+function paint(est){
+  const k = seg.kind;
+  if (k === 'clip' || k === 'test'){
+    setLcd(k === 'test' ? 'TEST' : 'PLAYING', '-' + Math.max(0, seg.to - est).toFixed(1));
+    setMeter((est - seg.from)/Math.max(0.1, seg.to - seg.from), 0);
+  } else if (k === 'reveal'){
+    setLcd('ANSWER', '+' + Math.max(0, est - seg.from).toFixed(1));
+    setMeter(1, (est - seg.from)/Math.max(0.1, seg.to - seg.from));
+  } else if (k === 'mark'){
+    setLcd('LISTEN', fmt(est));
+  }
+}
+function onState(e){
+  if (!seg) return;
+  if (e.data === 0) endSeg(); // video ended
+}
+function stopSeg(pause){
+  clearInterval(ticker); clearTimeout(watchdog); ticker = null;
+  if (pause && seg){ try { player.pauseVideo(); } catch(e){} }
+  seg = null;
+  document.querySelectorAll('.disc').forEach(d => d.classList.remove('spin'));
+  if (markArmed) disarmMark();
+}
+function endSeg(){
+  const k = seg ? seg.kind : null;
+  stopSeg(false);
+  if (k === 'clip'){
+    clipPlayed = true;
+    setLcd('YOUR TURN', 'BLANK'); setMeter(1,0);
+    $('turn').textContent = 'Finish the lyric!';
+    $('playBtn').textContent = '↺ Replay clip';
+    $('revealBtn').disabled = false;
+  } else if (k === 'reveal'){
+    setLcd('ANSWER', 'DONE'); setMeter(1,1);
+    $('turn').textContent = 'Who got it?';
+    markPlayed(cur);
+  } else if (k === 'test'){
+    setLcd('TEST DONE', 'BLANK'); setMeter(1,0);
+  } else if (k === 'mark'){
+    setLcd('READY');
+  }
+}
+$('playBtn').addEventListener('click', () => {
+  const s = song(cur);
+  $('turn').textContent = '';
+  playSeg(leadStart(s), s.stop, 'clip');
+});
+$('revealBtn').addEventListener('click', () => {
+  const s = song(cur);
+  $('turn').textContent = '';
+  playSeg(s.stop, s.stop + S.reveal, 'reveal');
+});
+
+/* ---------- scoring ---------- */
+function standings(){
+  return S.players.map(p => ({name:p.name, score:Object.values(S.awards).filter(a => a.includes(p.id)).length}))
+    .sort((a,b) => b.score - a.score);
+}
+function scoreOf(id){ return Object.values(S.awards).filter(a => a.includes(id)).length; }
+function renderChips(){
+  const box = $('chips'); box.innerHTML = '';
+  if (!S.players.length){
+    const b = document.createElement('button'); b.type='button'; b.className='btn ghost sm'; b.textContent='+ Add players to keep score';
+    b.addEventListener('click', openMenu); box.append(b); return;
+  }
+  const got = S.awards[cur] || [];
+  for (const p of S.players){
+    const c = document.createElement('button'); c.type='button'; c.className='chip';
+    c.setAttribute('aria-pressed', got.includes(p.id) ? 'true' : 'false');
+    const nm = document.createElement('span'); nm.textContent = p.name;
+    const pts = document.createElement('span'); pts.className='pts'; pts.textContent = scoreOf(p.id);
+    c.append(nm, pts);
+    c.addEventListener('click', () => {
+      const a = S.awards[cur] || (S.awards[cur] = []);
+      const i = a.indexOf(p.id);
+      if (i >= 0) a.splice(i,1); else a.push(p.id);
+      if (!a.length) delete S.awards[cur];
+      save(); renderChips();
+    });
+    box.append(c);
+  }
+}
+
+/* ---------- adjust stop point ---------- */
+function renderAdjust(){
+  const s = song(cur);
+  $('stopVal').textContent = fmt(s.stop);
+  const b = $('stopBadge');
+  if (s.ok){ b.className='badge ok'; b.textContent='confirmed'; }
+  else if (s.mine){ b.className='badge mine'; b.textContent='your edit'; }
+  else if (s.needsCheck){ b.className='badge chk'; b.textContent='test this one'; }
+  else { b.className='badge est'; b.textContent='estimate'; }
+  $('okBtn').disabled = s.ok;
+  $('resetStopBtn').disabled = !s.mine && !s.ok && !S.over[cur]?.id;
+}
+function setStop(v){
+  const o = S.over[cur] || (S.over[cur] = {});
+  o.stop = Math.round(Math.max(0.5, v)*10)/10; o.ok = false;
+  save(); renderAdjust();
+}
+document.querySelectorAll('[data-nudge]').forEach(b => b.addEventListener('click', () => {
+  const s = song(cur);
+  setStop(s.stop + parseFloat(b.dataset.nudge));
+  const ns = song(cur).stop;
+  playSeg(Math.max(0, ns - 3), ns, 'test');
+}));
+let markArmed = false;
+function disarmMark(){ markArmed = false; const b = $('markBtn'); b.className = 'btn ghost'; b.textContent = 'Listen and mark it myself'; }
+$('markBtn').addEventListener('click', () => {
+  if (!playerReady) return;
+  if (!markArmed){
+    const s = song(cur);
+    playSeg(Math.max(0, s.stop - 15), s.stop + 25, 'mark');
+    markArmed = true;
+    const b = $('markBtn'); b.className = 'btn hot'; b.textContent = 'Tap right at the blank';
+  } else {
+    const at = seg && seg.live ? seg.est : null;
+    stopSeg(true);
+    if (at != null){
+      setStop(at - REACTION);
+      $('markNote').textContent = `Saved ${fmt(song(cur).stop)}. Tap ▶ Play clip to hear it, or nudge it.`;
+    }
+    setLcd('READY');
+  }
+});
+$('okBtn').addEventListener('click', () => {
+  const o = S.over[cur] || (S.over[cur] = {}); o.ok = true; save(); renderAdjust();
+});
+$('resetStopBtn').addEventListener('click', () => {
+  const had = S.over[cur]?.id;
+  delete S.over[cur]; save(); renderAdjust();
+  $('markNote').textContent = 'Plays from 15 seconds earlier. Tap again the moment the missing words start.';
+  if (had && playerReady) cue();
+});
+function parseYt(u){
+  u = (u || '').trim();
+  if (/^[\w-]{11}$/.test(u)) return u;
+  const m = u.match(/(?:v=|youtu\.be\/|shorts\/|embed\/|live\/)([\w-]{11})/);
+  return m ? m[1] : null;
+}
+$('vidSave').addEventListener('click', () => {
+  const id = parseYt($('vidInput').value);
+  if (!id){ $('vidNote').textContent = "That doesn't look like a YouTube link. Copy it from the Share button in YouTube."; return; }
+  const o = S.over[cur] || (S.over[cur] = {}); o.id = id; o.ok = false; save();
+  $('vidNote').textContent = 'Video switched. The stop point probably moved too, so use “Listen and mark it myself”.';
+  hideMsg(); renderAdjust();
+  if (playerReady) cue();
+});
+
+/* ---------- players & settings sheet ---------- */
+const menu = $('menu');
+function openMenu(){ renderMenu(); try { menu.showModal(); } catch(e){ menu.setAttribute('open',''); } }
+$('menuBtn').addEventListener('click', openMenu);
+menu.addEventListener('close', () => { renderChips(); renderLabels(); renderHome(); });
+function renderMenu(){
+  const ul = $('plist'); ul.innerHTML = '';
+  for (const p of S.players){
+    const li = document.createElement('li');
+    const nm = document.createElement('span'); nm.textContent = p.name;
+    const pts = document.createElement('span'); pts.className = 'pts'; pts.textContent = scoreOf(p.id);
+    const rm = document.createElement('button'); rm.type='button'; rm.className='btn ghost sm'; rm.textContent='Remove'; rm.setAttribute('aria-label','Remove ' + p.name);
+    rm.addEventListener('click', () => {
+      S.players = S.players.filter(x => x.id !== p.id);
+      for (const k in S.awards){ S.awards[k] = S.awards[k].filter(x => x !== p.id); if (!S.awards[k].length) delete S.awards[k]; }
+      save(); renderMenu();
+    });
+    li.append(nm, pts, rm); ul.append(li);
+  }
+  $('lead').value = S.lead; $('leadOut').textContent = S.lead + 's';
+  $('reveal').value = S.reveal; $('revOut').textContent = S.reveal + 's';
+  $('backup').value = JSON.stringify({over:S.over, lead:S.lead, reveal:S.reveal});
+  $('bkMsg').textContent = '';
+}
+function addPlayer(){
+  const v = $('pname').value.trim();
+  if (!v) return;
+  S.players.push({id:'p' + Date.now().toString(36) + Math.random().toString(36).slice(2,5), name:v});
+  $('pname').value = ''; save(); renderMenu(); $('pname').focus();
+}
+$('padd').addEventListener('click', addPlayer);
+$('pname').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addPlayer(); } });
+$('lead').addEventListener('input', e => { S.lead = +e.target.value; $('leadOut').textContent = S.lead + 's'; save(); });
+$('reveal').addEventListener('input', e => { S.reveal = +e.target.value; $('revOut').textContent = S.reveal + 's'; save(); });
+$('copyBk').addEventListener('click', async () => {
+  const ta = $('backup');
+  try { await navigator.clipboard.writeText(ta.value); $('bkMsg').textContent = 'Copied.'; }
+  catch(e){ ta.focus(); ta.select(); $('bkMsg').textContent = 'Selected. Long-press and choose Copy.'; }
+});
+$('restoreBk').addEventListener('click', () => {
+  try {
+    const j = JSON.parse($('backup').value);
+    if (!j || typeof j.over !== 'object') throw 0;
+    S.over = j.over; if (j.lead) S.lead = j.lead; if (j.reveal) S.reveal = j.reveal;
+    save(); renderMenu(); $('bkMsg').textContent = 'Restored your stop points.';
+  } catch(e){ $('bkMsg').textContent = "That code didn't work. Paste the whole thing, including the { and }."; }
+});
+function twoTap(btn, label, action){
+  let armed = false, t = null;
+  btn.addEventListener('click', () => {
+    if (!armed){ armed = true; btn.textContent = 'Tap again to confirm'; t = setTimeout(() => { armed = false; btn.textContent = label; }, 3000); return; }
+    clearTimeout(t); armed = false; btn.textContent = 'Done'; action(); setTimeout(() => btn.textContent = label, 1500);
+  });
+}
+twoTap($('resetPlayed'), 'Clear played tracks', () => { S.played = []; save(); });
+twoTap($('resetScores'), 'Reset scores', () => { S.awards = {}; save(); renderMenu(); });
+
+/* ---------- keep the screen on during a game ---------- */
+let wake = null;
+async function requestWake(){ try { if ('wakeLock' in navigator && !wake){ wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => wake = null); } } catch(e){} }
+function releaseWake(){ try { wake && wake.release(); } catch(e){} wake = null; }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && !$('game').hidden) requestWake(); });
+
+renderHome();
+</script>
+</body>
+</html>
