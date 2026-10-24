@@ -128,6 +128,7 @@ details.adjust[open]>summary::after{content:"–"}
 .nudge{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .nudge .btn{font-family:var(--lcdf);font-size:1.3rem;font-weight:400;padding:6px}
 .field{display:flex;gap:8px}
+.txt{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:11px;padding:12px;min-height:46px}
 .field input{flex:1;min-width:0;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var(--line);border-radius:11px;padding:10px 12px}
 .done{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;padding-top:20px}
 .done h2{font-family:var(--marker);font-weight:400;font-size:2.2rem;margin:0}
@@ -167,7 +168,10 @@ textarea{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var
   </header>
   <div class="home-actions">
     <button id="startBtn" class="btn play big" type="button">▶ Start game</button>
-    <button id="menuBtn" class="btn ghost" type="button">Players &amp; settings</button>
+    <div class="row2">
+      <button id="addBtn" class="btn ghost" type="button">+ Add a song</button>
+      <button id="menuBtn" class="btn ghost" type="button">Players &amp; setup</button>
+    </div>
   </div>
   <p class="status-line" id="homeStatus"></p>
   <section class="insert" aria-label="Tracklist">
@@ -245,6 +249,9 @@ textarea{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var
         <button id="vidSave" class="btn ghost sm" type="button">Use it</button>
       </div>
       <p class="note" id="vidNote"></p>
+      <div id="removeBox" hidden>
+        <button id="removeSongBtn" class="btn ghost sm" type="button">Remove this song</button>
+      </div>
     </div>
   </details>
 </main>
@@ -259,6 +266,27 @@ textarea{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var
     <button id="doneBack" class="btn play big" type="button">Back to the tracklist</button>
   </div>
 </main>
+
+<!-- ADD A SONG -->
+<dialog id="addDlg">
+  <form method="dialog" class="sheet">
+    <div class="sheet-head">
+      <h3>Add a song</h3>
+      <button class="btn ghost sm" value="cancel">Cancel</button>
+    </div>
+    <p class="note">In the YouTube app, open the song, tap <b>Share → Copy link</b>, and paste it here. Official audio or the music video works best. Skip lyric videos, because they show the words on screen.</p>
+    <section>
+      <label class="range" for="addUrl"><span>YouTube link</span></label>
+      <input id="addUrl" class="txt" type="url" inputmode="url" placeholder="https://youtu.be/…" autocomplete="off">
+      <label class="range" for="addTitle"><span>Song title <span class="note">optional</span></span></label>
+      <input id="addTitle" class="txt" placeholder="Uses the YouTube title if blank" maxlength="80" autocomplete="off">
+      <label class="range" for="addArtist"><span>Artist <span class="note">optional</span></span></label>
+      <input id="addArtist" class="txt" placeholder="Artist" maxlength="80" autocomplete="off">
+    </section>
+    <p class="note" id="addMsg" aria-live="polite"></p>
+    <button id="addSave" class="btn play big" type="button">Add it and set the blank</button>
+  </form>
+</dialog>
 
 <!-- SHEET -->
 <dialog id="menu">
@@ -287,7 +315,7 @@ textarea{width:100%;background:var(--bg);border:0;box-shadow:inset 0 0 0 1px var
 
     <section>
       <h4>Back up your stop points</h4>
-      <p class="note">Your changes are saved on this phone only. Copy this code somewhere safe; paste it back here to restore it.</p>
+      <p class="note">Your stop points and added songs are saved on this phone only. Copy this code somewhere safe; paste it back here to restore it.</p>
       <textarea id="backup" rows="3" spellcheck="false"></textarea>
       <div class="row2">
         <button id="copyBk" class="btn ghost sm" type="button">Copy code</button>
@@ -344,14 +372,16 @@ const SONGS = [
  {n:27,title:"Can't Get You Out of My Head",artist:"Kylie Minogue",id:"c18441Eh_WE",stop:33.4},
  {n:28,title:"A Thousand Miles",artist:"Vanessa Carlton",id:"NpNi7Gsz8_Q",stop:14.1},
  {n:29,title:"Where Is the Love?",artist:"Black Eyed Peas",id:"WpYeekQkAdc",stop:75.3,check:true},
- {n:30,title:"Crazy in Love",artist:"Beyoncé ft. Jay-Z",id:"ViwtNLUqkMY",stop:36.5}
+ {n:30,title:"Crazy in Love",artist:"Beyoncé ft. Jay-Z",id:"ViwtNLUqkMY",stop:36.5},
+ /* added later */
+ {n:31,title:"Gangnam Style",artist:"PSY",id:"CVxMTl6cUSE",stop:66.8},
+ {n:32,title:"Golden",artist:"HUNTR/X (KPop Demon Hunters)",id:"9_bTl2vvYQg",stop:68.6}
 ];
-const TOTAL = SONGS.length;
 const KEY = 'millennial-card-v1';
 const REACTION = 0.25; // seconds subtracted from a hand-marked stop
 
 /* ---------- saved state (this phone only) ---------- */
-function defaults(){ return {over:{}, played:[], players:[], awards:{}, lead:8, reveal:6, shuffle:false}; }
+function defaults(){ return {over:{}, played:[], players:[], awards:{}, lead:8, reveal:6, shuffle:false, custom:[]}; }
 function load(){
   try { const j = JSON.parse(localStorage.getItem(KEY) || 'null'); if (j && typeof j === 'object') return Object.assign(defaults(), j); } catch(e) {}
   return defaults();
@@ -359,30 +389,38 @@ function load(){
 let S = load();
 function save(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch(e) {} }
 
+/* Songs you add on the phone live in S.custom; they start with no stop point until you mark one. */
+const allSongs = () => SONGS.concat(S.custom || []);
+const nums = () => allSongs().map(s => s.n);
+const posOf = n => nums().indexOf(n) + 1;
 function song(n){
-  const b = SONGS[n-1], o = S.over[n] || {};
+  const b = allSongs().find(s => s.n === n) || SONGS[0], o = S.over[n] || {};
   const mine = typeof o.stop === 'number';
-  return {...b, id:o.id || b.id, stop: mine ? o.stop : b.stop, mine, ok: !!o.ok, needsCheck: !!b.check && !o.ok && !mine};
+  const stop = mine ? o.stop : (typeof b.stop === 'number' ? b.stop : null);
+  const unset = stop === null;
+  return {...b, id:o.id || b.id, stop, unset, mine, ok: !!o.ok && !unset, custom: !!b.custom,
+          needsCheck: unset || (!!b.check && !o.ok && !mine)};
 }
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2,'0');
 function fmt(t){ t = Math.max(0,t); const m = Math.floor(t/60); return m + ':' + (t - m*60).toFixed(1).padStart(4,'0'); }
-const leadStart = s => Math.max(0, s.stop - S.lead);
+const leadStart = s => s.unset ? 0 : Math.max(0, s.stop - S.lead);
 
 /* ---------- home ---------- */
 function renderHome(){
   const ol = $('tracks'); ol.innerHTML = '';
   let checks = 0;
-  for (let n = 1; n <= TOTAL; n++){
+  const all = nums();
+  all.forEach((n, i) => {
     const s = song(n), played = S.played.includes(n);
     if (s.needsCheck) checks++;
     const li = document.createElement('li');
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'trk' + (played ? ' played' : ''); b.dataset.n = n;
-    const no = document.createElement('span'); no.className = 'no'; no.textContent = pad(n);
+    const no = document.createElement('span'); no.className = 'no'; no.textContent = pad(i + 1);
     const nm = document.createElement('span'); nm.className = 'name';
     const t = document.createElement('span'); t.className = 't'; t.textContent = s.title;
-    const a = document.createElement('span'); a.className = 'a'; a.textContent = s.artist + (played ? ' · played' : '');
+    const a = document.createElement('span'); a.className = 'a'; a.textContent = (s.artist || 'Added by you') + (s.unset ? ' · blank not set' : '') + (played ? ' · played' : '');
     nm.append(t, a);
     const mk = document.createElement('span'); mk.className = 'marks';
     if (s.ok) { const d = document.createElement('i'); d.className = 'dot ok'; d.title = 'Stop point confirmed'; mk.append(d); }
@@ -390,11 +428,12 @@ function renderHome(){
     b.append(no, nm, mk);
     b.addEventListener('click', () => startFrom(n));
     li.append(b); ol.append(li);
-  }
-  const p = S.played.length;
-  $('homeStatus').innerHTML = `<b>${p}</b> of ${TOTAL} played` + (checks ? ` · ${checks} stop point${checks>1?'s':''} to test first` : '');
+  });
+  const total = all.length;
+  const p = S.played.filter(n => all.includes(n)).length;
+  $('homeStatus').innerHTML = `<b>${p}</b> of ${total} played` + (checks ? ` · ${checks} stop point${checks>1?'s':''} to test first` : '');
   $('shuffle').checked = !!S.shuffle;
-  $('startBtn').textContent = p && p < TOTAL ? '▶ Keep playing' : '▶ Start game';
+  $('startBtn').textContent = p && p < total ? '▶ Keep playing' : '▶ Start game';
 }
 $('shuffle').addEventListener('change', e => { S.shuffle = e.target.checked; save(); });
 
@@ -402,13 +441,14 @@ $('shuffle').addEventListener('change', e => { S.shuffle = e.target.checked; sav
 let queue = [], qi = 0, cur = 1, clipPlayed = false;
 function shuffleArr(a){ for (let i = a.length-1; i > 0; i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]] = [a[j],a[i]]; } return a; }
 function startGame(){
-  let list = SONGS.map(s => s.n).filter(n => !S.played.includes(n));
-  if (!list.length){ S.played = []; save(); list = SONGS.map(s => s.n); }
+  let list = nums().filter(n => !S.played.includes(n));
+  if (!list.length){ S.played = []; save(); list = nums(); }
   if (S.shuffle) shuffleArr(list);
   queue = list; qi = 0; openTrack(queue[0]);
 }
 function startFrom(n){
-  const rest = SONGS.map(s => s.n).filter(x => x > n && !S.played.includes(x));
+  const all = nums();
+  const rest = all.slice(all.indexOf(n) + 1).filter(x => !S.played.includes(x));
   queue = [n, ...(S.shuffle ? shuffleArr(rest) : rest)]; qi = 0; openTrack(n);
 }
 function show(which){
@@ -431,16 +471,14 @@ function openTrack(n){
   stopSeg(true);
   cur = n; clipPlayed = false;
   const s = song(n);
-  $('trkNo').textContent = `TRK ${pad(n)}/${TOTAL}`;
-  $('gTitle').textContent = s.title;
-  $('gArtist').textContent = s.artist;
+  renderHeader();
   $('turn').textContent = '';
-  $('playBtn').textContent = '▶ Play clip';
   $('revealBtn').disabled = true;
-  $('adjust').open = false;
+  $('adjust').open = s.unset;
   $('vidInput').value = ''; $('vidNote').textContent = '';
-  hideMsg(); renderLabels(); renderChips(); renderAdjust();
-  setLcd(playerReady ? 'READY' : 'LOADING', '-' + S.lead.toFixed(1)); setMeter(0,0);
+  $('markNote').textContent = markHint(s);
+  hideMsg(); renderLabels(); renderChips(); renderAdjust(); renderPlayBtn();
+  setLcd(s.unset ? 'NO BLANK SET' : (playerReady ? 'READY' : 'LOADING'), s.unset ? '--.-' : '-' + S.lead.toFixed(1)); setMeter(0,0);
   show('game');
   if (playerReady) cue(); else ensurePlayer();
   requestWake();
@@ -563,6 +601,7 @@ function paint(est){
   }
 }
 function onState(e){
+  if (e.data === 1 || e.data === 2 || e.data === 5) maybeAutoTitle();
   if (!seg) return;
   if (e.data === 0) endSeg(); // video ended
 }
@@ -594,9 +633,23 @@ function endSeg(){
 }
 $('playBtn').addEventListener('click', () => {
   const s = song(cur);
+  if (s.unset){ $('adjust').open = true; $('adjust').scrollIntoView({behavior:'smooth', block:'start'}); return; }
   $('turn').textContent = '';
   playSeg(leadStart(s), s.stop, 'clip');
 });
+function renderHeader(){
+  const s = song(cur);
+  $('trkNo').textContent = `TRK ${pad(posOf(cur))}/${pad(nums().length)}`;
+  $('gTitle').textContent = s.title;
+  $('gArtist').textContent = s.artist || '';
+}
+function renderPlayBtn(){
+  const s = song(cur);
+  $('playBtn').textContent = s.unset ? 'Set the blank first ↓' : (clipPlayed ? '↺ Replay clip' : '▶ Play clip');
+}
+const markHint = s => s.unset
+  ? 'Plays the song from the start. Tap again the moment the missing words start.'
+  : 'Plays from 15 seconds earlier. Tap again the moment the missing words start.';
 $('revealBtn').addEventListener('click', () => {
   const s = song(cur);
   $('turn').textContent = '';
@@ -636,14 +689,18 @@ function renderChips(){
 /* ---------- adjust stop point ---------- */
 function renderAdjust(){
   const s = song(cur);
-  $('stopVal').textContent = fmt(s.stop);
+  $('stopVal').textContent = s.unset ? 'not set' : fmt(s.stop);
   const b = $('stopBadge');
-  if (s.ok){ b.className='badge ok'; b.textContent='confirmed'; }
+  if (s.unset){ b.className='badge chk'; b.textContent='mark it below'; }
+  else if (s.ok){ b.className='badge ok'; b.textContent='confirmed'; }
   else if (s.mine){ b.className='badge mine'; b.textContent='your edit'; }
   else if (s.needsCheck){ b.className='badge chk'; b.textContent='test this one'; }
   else { b.className='badge est'; b.textContent='estimate'; }
-  $('okBtn').disabled = s.ok;
+  $('okBtn').disabled = s.ok || s.unset;
   $('resetStopBtn').disabled = !s.mine && !s.ok && !S.over[cur]?.id;
+  document.querySelectorAll('[data-nudge]').forEach(x => x.disabled = s.unset);
+  $('removeBox').hidden = !s.custom;
+  renderPlayBtn();
 }
 function setStop(v){
   const o = S.over[cur] || (S.over[cur] = {});
@@ -662,7 +719,8 @@ $('markBtn').addEventListener('click', () => {
   if (!playerReady) return;
   if (!markArmed){
     const s = song(cur);
-    playSeg(Math.max(0, s.stop - 15), s.stop + 25, 'mark');
+    if (s.unset) playSeg(0, 100000, 'mark');
+    else playSeg(Math.max(0, s.stop - 15), s.stop + 25, 'mark');
     markArmed = true;
     const b = $('markBtn'); b.className = 'btn hot'; b.textContent = 'Tap right at the blank';
   } else {
@@ -671,8 +729,9 @@ $('markBtn').addEventListener('click', () => {
     if (at != null){
       setStop(at - REACTION);
       $('markNote').textContent = `Saved ${fmt(song(cur).stop)}. Tap ▶ Play clip to hear it, or nudge it.`;
+      renderHome();
     }
-    setLcd('READY');
+    setLcd(song(cur).unset ? 'NO BLANK SET' : 'READY', song(cur).unset ? '--.-' : '-' + S.lead.toFixed(1));
   }
 });
 $('okBtn').addEventListener('click', () => {
@@ -681,7 +740,7 @@ $('okBtn').addEventListener('click', () => {
 $('resetStopBtn').addEventListener('click', () => {
   const had = S.over[cur]?.id;
   delete S.over[cur]; save(); renderAdjust();
-  $('markNote').textContent = 'Plays from 15 seconds earlier. Tap again the moment the missing words start.';
+  $('markNote').textContent = markHint(song(cur));
   if (had && playerReady) cue();
 });
 function parseYt(u){
@@ -697,6 +756,41 @@ $('vidSave').addEventListener('click', () => {
   $('vidNote').textContent = 'Video switched. The stop point probably moved too, so use “Listen and mark it myself”.';
   hideMsg(); renderAdjust();
   if (playerReady) cue();
+});
+
+/* ---------- add / remove your own songs ---------- */
+const addDlg = $('addDlg');
+$('addBtn').addEventListener('click', () => {
+  for (const id of ['addUrl','addTitle','addArtist']) $(id).value = '';
+  $('addMsg').textContent = '';
+  try { addDlg.showModal(); } catch(e){ addDlg.setAttribute('open',''); }
+});
+function addSong(){
+  const id = parseYt($('addUrl').value);
+  if (!id){ $('addMsg').textContent = "That doesn't look like a YouTube link. Copy it from YouTube's Share button."; return; }
+  const n = Math.max(...nums()) + 1;
+  const title = $('addTitle').value.trim();
+  S.custom = S.custom || [];
+  S.custom.push({n, id, title: title || 'New song', artist: $('addArtist').value.trim(), stop: null, custom: true, autoTitle: !title});
+  save(); addDlg.close(); renderHome();
+  queue = [n]; qi = 0; openTrack(n);
+}
+$('addSave').addEventListener('click', addSong);
+for (const id of ['addUrl','addTitle','addArtist']) $(id).addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); addSong(); } });
+function maybeAutoTitle(){
+  const c = (S.custom || []).find(x => x.n === cur);
+  if (!c || !c.autoTitle || !player) return;
+  let d; try { d = player.getVideoData(); } catch(e){ return; }
+  if (!d || d.video_id !== song(cur).id || !d.title) return;
+  c.title = d.title.slice(0, 80);
+  if (!c.artist && d.author) c.artist = d.author.replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/, '');
+  c.autoTitle = false; save(); renderHeader();
+}
+twoTap($('removeSongBtn'), 'Remove this song', () => {
+  const n = cur;
+  S.custom = (S.custom || []).filter(x => x.n !== n);
+  delete S.over[n]; delete S.awards[n]; S.played = S.played.filter(x => x !== n);
+  save(); goHome();
 });
 
 /* ---------- players & settings sheet ---------- */
@@ -720,7 +814,7 @@ function renderMenu(){
   }
   $('lead').value = S.lead; $('leadOut').textContent = S.lead + 's';
   $('reveal').value = S.reveal; $('revOut').textContent = S.reveal + 's';
-  $('backup').value = JSON.stringify({over:S.over, lead:S.lead, reveal:S.reveal});
+  $('backup').value = JSON.stringify({over:S.over, lead:S.lead, reveal:S.reveal, custom:S.custom || []});
   $('bkMsg').textContent = '';
 }
 function addPlayer(){
@@ -743,7 +837,8 @@ $('restoreBk').addEventListener('click', () => {
     const j = JSON.parse($('backup').value);
     if (!j || typeof j.over !== 'object') throw 0;
     S.over = j.over; if (j.lead) S.lead = j.lead; if (j.reveal) S.reveal = j.reveal;
-    save(); renderMenu(); $('bkMsg').textContent = 'Restored your stop points.';
+    if (Array.isArray(j.custom)) S.custom = j.custom;
+    save(); renderMenu(); $('bkMsg').textContent = 'Restored your stop points and songs.';
   } catch(e){ $('bkMsg').textContent = "That code didn't work. Paste the whole thing, including the { and }."; }
 });
 function twoTap(btn, label, action){
